@@ -43,9 +43,7 @@ int main(void)
 		"ground.png");
 	SDL_Texture* bullet_image = IMG_LoadTexture(
 		renderer,
-		"bullet.png");
-
-	Character player = {
+		"bullet.png"); Character player = {
 		{0, 0, 40, 50},
 		{300, 492, 40, 50},
 		IMG_LoadTexture(
@@ -54,7 +52,7 @@ int main(void)
 		.speed = 4,
 		.delay = 100,
 		.frame = 5,
-		.hp = 100
+		.hp = 120
 	};
 
 	Character enemy = { {0, 0, 40, 50},
@@ -100,7 +98,7 @@ int main(void)
 		if(key_down[SDL_SCANCODE_W])
 		{
 			if(player.d_rect.y == 492)
-				player.force = -30;
+				player.force = -15;
 		}
 		if(key_down[SDL_SCANCODE_A])
 		{
@@ -134,28 +132,33 @@ int main(void)
 		}
 		if(key_down[SDL_SCANCODE_SPACE])
 		{
-			Bullet* bullet = malloc(sizeof(Bullet));
-			*bullet = (Bullet){
-				{
-					player.d_rect.x + player.d_rect.w / 2 + 4, 
-					player.d_rect.y + player.d_rect.h / 2 - 6, 
-					8, 8
-				},
-				bullet_image,
-				.speed = 10, 
-				.faced_left = player.faced_left, 
-				.range = 800, 
-				.start_x = player.d_rect.x,
-				.friendly = 1
-			};
-			Array_insert(bullets, 0, bullet);
+			static unsigned shoot_time = 0;
+			if(SDL_GetTicks() / 400 > shoot_time)
+			{
+				shoot_time = SDL_GetTicks() / 400;
+				Bullet* bullet = malloc(sizeof(Bullet));
+				*bullet = (Bullet){
+					{
+						player.d_rect.x + player.d_rect.w / 2 + 4, 
+						player.d_rect.y + player.d_rect.h / 2 - 6, 
+						8, 8
+					},
+					bullet_image,
+					.speed = 10, 
+					.faced_left = player.faced_left, 
+					.range = 800, 
+					.start_x = player.d_rect.x,
+					.friendly = 1
+				};
+				Array_insert(bullets, 0, bullet);
+			}
 		}
 
 		//AI
 		if(SDL_GetTicks() - enemy.time > enemy.delay)
 		{
 			int action = rand() % 100000;
-			if(action > 80000)
+			if(action > 70000)
 			{
 				enemy.time = SDL_GetTicks();
 				Bullet* e_bullet = malloc(sizeof(Bullet));
@@ -174,7 +177,7 @@ int main(void)
 				};
 				Array_insert(bullets, 0, e_bullet);
 			}
-			else if(action > 50000)
+			else if(action > 60000)
 			{
 				if(enemy.d_rect.y == 492)
 					enemy.force = -15;
@@ -280,29 +283,43 @@ int main(void)
 
 			if(bullet->friendly)
 			{
-
 				if(SDL_HasIntersection(&bullet->d_rect, &enemy.d_rect))
 				{
-					enemy.hp -= 5;
+					enemy.hp -= 10;
+					free(bullet);
+					Array_remove(bullets, i);
 				}
 			}
 			else
 			{
 				if(SDL_HasIntersection(&bullet->d_rect, &player.d_rect))
 				{
-					player.hp -= 5;
+					player.hp -= 20;
+					free(bullet);
+					Array_remove(bullets, i);
 				}
-
 			}
 		}
 
-		SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-		SDL_RenderDrawRect(renderer, &(SDL_Rect){
-			
-		});
+		if(player.hp <= 0)
+		{
+			done = 1;
+			SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Alert", "You died!", NULL);
+		}
+		else if(enemy.hp <= 0)
+		{
+			enemy.d_rect.x = rand() % 800;
+			enemy.d_rect.y = rand() % 600 - 200;
+			enemy.hp = 80;
+		}
+
 		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-		SDL_RenderDrawRect(renderer, &(SDL_Rect){
-			20, 20, 
+		SDL_RenderFillRect(renderer, &(SDL_Rect){
+			(int)(800 - 20 - enemy.hp / 80.0 * 200), 20, (int)(enemy.hp / 80.0 * 200), 20
+		});
+		SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+		SDL_RenderFillRect(renderer, &(SDL_Rect){
+			20, 20, (int)(player.hp / 120.0 * 200), 20
 		});
 		SDL_RenderPresent(renderer);
 	}
