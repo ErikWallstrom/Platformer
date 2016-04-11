@@ -1,4 +1,5 @@
 #include "Array.h"
+#include <time.h>
 #include <stdio.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
@@ -9,7 +10,7 @@ typedef struct
 	SDL_Rect d_rect;
 	SDL_Texture* texture;
 
-	int speed, frame, direction, faced_left, force;
+	int speed, frame, direction, faced_left, force, hp;
 	unsigned time, delay;
 } Character;
 
@@ -17,11 +18,12 @@ typedef struct
 {
 	SDL_Rect d_rect;
 	SDL_Texture* texture;
-	int speed, faced_left, range, start_x;
+	int speed, faced_left, range, start_x, friendly;
 } Bullet;
 
 int main(void)
 {
+	srand((unsigned)time(0));
 	SDL_Init(SDL_INIT_EVERYTHING);
 	SDL_Window* window = SDL_CreateWindow(
 		"Platformer 0.1",
@@ -45,13 +47,25 @@ int main(void)
 
 	Character player = {
 		{0, 0, 40, 50},
-		{380, 492, 40, 50},
+		{300, 492, 40, 50},
 		IMG_LoadTexture(
 			renderer,
-			"sprite_sheet.png"),
+			"player.png"),
 		.speed = 4,
 		.delay = 100,
 		.frame = 5,
+		.hp = 100
+	};
+
+	Character enemy = { {0, 0, 40, 50},
+		{380, 492, 40, 50},
+		IMG_LoadTexture(
+			renderer,
+			"enemy.png"),
+		.speed = 4,
+		.delay = 800,
+		.frame = 5,
+		.hp = 80
 	};
 
 	Array* bullets = Array_create();
@@ -83,38 +97,21 @@ int main(void)
 		}
 
 		//Keyboard
-		if(key_down[SDL_SCANCODE_SPACE])
-		{
-			static unsigned fire_time = 0;
-			if(SDL_GetTicks() / 250 > fire_time)
-			{
-				fire_time = SDL_GetTicks() / 250;
-				Bullet* bullet = malloc(sizeof(Bullet));
-				*bullet = (Bullet){
-					{
-						player.d_rect.x + player.d_rect.w / 2 + 4, 
-						player.d_rect.y + player.d_rect.h / 2 - 6, 
-						8, 8
-					},
-					bullet_image,
-					10, player.faced_left, 500, player.d_rect.x
-				};
-				Array_insert(bullets, 0, bullet);
-			}
-		}
 		if(key_down[SDL_SCANCODE_W])
 		{
 			if(player.d_rect.y == 492)
-				player.force = -15;
+				player.force = -30;
 		}
 		if(key_down[SDL_SCANCODE_A])
 		{
 			player.direction = -1;
 			player.faced_left = 1;
+
 			if(SDL_GetTicks() - player.delay > player.time)
 			{
 				player.time = SDL_GetTicks();
 				player.frame++;
+
 				if(player.frame >= 4)
 				{
 					player.frame = 0;
@@ -135,6 +132,73 @@ int main(void)
 				}
 			}
 		}
+		if(key_down[SDL_SCANCODE_SPACE])
+		{
+			Bullet* bullet = malloc(sizeof(Bullet));
+			*bullet = (Bullet){
+				{
+					player.d_rect.x + player.d_rect.w / 2 + 4, 
+					player.d_rect.y + player.d_rect.h / 2 - 6, 
+					8, 8
+				},
+				bullet_image,
+				.speed = 10, 
+				.faced_left = player.faced_left, 
+				.range = 800, 
+				.start_x = player.d_rect.x,
+				.friendly = 1
+			};
+			Array_insert(bullets, 0, bullet);
+		}
+
+		//AI
+		if(SDL_GetTicks() - enemy.time > enemy.delay)
+		{
+			int action = rand() % 100000;
+			if(action > 80000)
+			{
+				enemy.time = SDL_GetTicks();
+				Bullet* e_bullet = malloc(sizeof(Bullet));
+				*e_bullet = (Bullet){
+					{
+						enemy.d_rect.x + enemy.d_rect.w / 2 + 4, 
+						enemy.d_rect.y + enemy.d_rect.h / 2 - 6, 
+						8, 8
+					},
+					bullet_image,
+					.speed = 8, 
+					.faced_left = enemy.faced_left, 
+					.range = 800, 
+					.start_x = enemy.d_rect.x,
+					.friendly = 0
+				};
+				Array_insert(bullets, 0, e_bullet);
+			}
+			else if(action > 50000)
+			{
+				if(enemy.d_rect.y == 492)
+					enemy.force = -15;
+				enemy.faced_left = (rand() % 1000 > 500) ? 0 : 1;
+			}
+			else 
+			{
+				int r = rand() % 100000;
+				if(r > 70000)
+					enemy.direction = 0;
+				else if(r > 40000)
+					enemy.direction = 1;
+				else
+					enemy.direction = -1;
+			}
+		}
+		if(enemy.d_rect.x + enemy.d_rect.w > 800)
+		{
+			enemy.d_rect.x = 800 - enemy.d_rect.w;
+		}
+		else if(enemy.d_rect.x < 0)
+		{
+			enemy.d_rect.x = 0;
+		}
 
 		//Gravity
 		player.force += gravity;
@@ -145,11 +209,21 @@ int main(void)
 			player.force = 0;
 		}
 
+		enemy.force += gravity;
+		enemy.d_rect.y += enemy.force;
+		if(enemy.d_rect.y >= 492)
+		{
+			enemy.d_rect.y = 492;
+			enemy.force = 0;
+		}
+
 		//Movement
 		player.d_rect.x += player.direction * player.speed;
+		enemy.d_rect.x += enemy.direction * enemy.speed;
 
 		//Animation
 		player.s_rect.x = player.frame * 40;
+		enemy.s_rect.x = enemy.frame * 40;
 
 		//Rendering
 		SDL_RenderClear(renderer);
@@ -170,6 +244,14 @@ int main(void)
 			&player.d_rect,
 			0.0, NULL,
 			player.faced_left ? 
+				SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
+		SDL_RenderCopyEx(
+			renderer, 
+			enemy.texture, 
+			&enemy.s_rect,
+			&enemy.d_rect,
+			0.0, NULL,
+			enemy.faced_left ? 
 				SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
 
 		foreach(i, bullets)
@@ -195,7 +277,33 @@ int main(void)
 				free(bullet);
 				Array_remove(bullets, i);
 			}
+
+			if(bullet->friendly)
+			{
+
+				if(SDL_HasIntersection(&bullet->d_rect, &enemy.d_rect))
+				{
+					enemy.hp -= 5;
+				}
+			}
+			else
+			{
+				if(SDL_HasIntersection(&bullet->d_rect, &player.d_rect))
+				{
+					player.hp -= 5;
+				}
+
+			}
 		}
+
+		SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+		SDL_RenderDrawRect(renderer, &(SDL_Rect){
+			
+		});
+		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+		SDL_RenderDrawRect(renderer, &(SDL_Rect){
+			20, 20, 
+		});
 		SDL_RenderPresent(renderer);
 	}
 
