@@ -66,7 +66,7 @@ int main(void)
 		IMG_LoadTexture(
 			renderer,
 			"player.png"),
-		.speed = 4,
+		.speed = 5,
 		.delay = 100,
 		.frame = 5,
 		.hp = 140
@@ -78,20 +78,119 @@ int main(void)
 		IMG_LoadTexture(
 			renderer,
 			"enemy.png"),
-		.speed = 4,
+		.speed = 2,
 		.delay = 800,
 		.frame = 5,
 		.hp = 80
+	};
+
+	Character medkit = {
+		{0, 0, 522, 462},
+		{1000, 0, 30, 20},
+		IMG_LoadTexture(
+			renderer,
+			"medkit.png"),
+		.speed = 0
 	};
 
 	Array* bullets = Array_create();
 	const Uint8* key_down = SDL_GetKeyboardState(NULL);
 	SDL_Event event;
 	int enemies_killed = 0;
+	int get_medkit = 0;
 	int gravity = 1;
 	done = 0;
 	while(!done)
 	{
+		//Rendering
+		SDL_RenderClear(renderer);
+		SDL_RenderCopy(
+			renderer,
+			background_image,
+			NULL,
+			&(SDL_Rect){0, 0, 800, 600});
+		SDL_RenderCopy(
+			renderer,
+			ground_image,
+			NULL,
+			&(SDL_Rect){0, 530, 800, 70});
+		SDL_RenderCopy(
+			renderer,
+			medkit.texture,
+			&medkit.s_rect,
+			&medkit.d_rect
+		);
+		SDL_RenderCopyEx(
+			renderer, 
+			player.texture, 
+			&player.s_rect,
+			&player.d_rect,
+			0.0, NULL,
+			player.faced_left ? 
+				SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
+		SDL_RenderCopyEx(
+			renderer, 
+			enemy.texture, 
+			&enemy.s_rect,
+			&enemy.d_rect,
+			0.0, NULL,
+			enemy.faced_left ? 
+				SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
+
+		foreach(i, bullets)
+		{
+			Bullet* bullet = Array_get(bullets, i);
+			if(bullet->faced_left)
+				bullet->d_rect.x -= bullet->speed;
+			else
+				bullet->d_rect.x += bullet->speed;
+
+			SDL_RenderCopyEx(
+				renderer,
+				bullet->texture,
+				NULL,
+				&bullet->d_rect,
+				0.0, NULL,
+				bullet->faced_left ?
+					SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
+
+			if(abs(bullet->d_rect.x - bullet->start_x) >= 
+				bullet->range)
+			{
+				free(bullet);
+				Array_remove(bullets, i);
+			}
+
+			if(bullet->friendly)
+			{
+				if(SDL_HasIntersection(&bullet->d_rect, &enemy.d_rect))
+				{
+					enemy.hp -= 16;
+					free(bullet);
+					Array_remove(bullets, i);
+				}
+			}
+			else
+			{
+				if(SDL_HasIntersection(&bullet->d_rect, &player.d_rect))
+				{
+					player.hp -= 20;
+					free(bullet);
+					Array_remove(bullets, i);
+				}
+			}
+		}
+		
+		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+		SDL_RenderFillRect(renderer, &(SDL_Rect){
+			(int)(800 - 20 - enemy.hp / 80.0 * 200), 20, (int)(enemy.hp / 80.0 * 200), 20
+		});
+		SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+		SDL_RenderFillRect(renderer, &(SDL_Rect){
+			20, 20, (int)(player.hp / 140.0 * 200), 20
+		});
+		SDL_RenderPresent(renderer);
+
 		//Events
 		while(SDL_PollEvent(&event))
 		{
@@ -163,7 +262,7 @@ int main(void)
 						8, 8
 					},
 					bullet_image,
-					.speed = 10, 
+					.speed = 9, 
 					.faced_left = player.faced_left, 
 					.range = 800, 
 					.start_x = player.d_rect.x,
@@ -188,7 +287,7 @@ int main(void)
 						8, 8
 					},
 					bullet_image,
-					.speed = 8, 
+					.speed = 5, 
 					.faced_left = enemy.faced_left, 
 					.range = 800, 
 					.start_x = enemy.d_rect.x,
@@ -213,16 +312,16 @@ int main(void)
 					enemy.direction = -1;
 			}
 		}
-		if(enemy.d_rect.x + enemy.d_rect.w > 800)
-		{
-			enemy.d_rect.x = 800 - enemy.d_rect.w;
-		}
-		else if(enemy.d_rect.x < 0)
-		{
-			enemy.d_rect.x = 0;
-		}
 
 		//Gravity
+		medkit.force += gravity;
+		medkit.d_rect.y += medkit.force;
+		if(medkit.d_rect.y >= 517)
+		{
+			medkit.d_rect.y = 517;
+			medkit.force = 0;
+		}
+
 		player.force += gravity;
 		player.d_rect.y += player.force;
 		if(player.d_rect.y >= 492)
@@ -247,77 +346,48 @@ int main(void)
 		player.s_rect.x = player.frame * 40;
 		enemy.s_rect.x = enemy.frame * 40;
 
-		//Rendering
-		SDL_RenderClear(renderer);
-		SDL_RenderCopy(
-			renderer,
-			background_image,
-			NULL,
-			&(SDL_Rect){0, 0, 800, 600});
-		SDL_RenderCopy(
-			renderer,
-			ground_image,
-			NULL,
-			&(SDL_Rect){0, 530, 800, 70});
-		SDL_RenderCopyEx(
-			renderer, 
-			player.texture, 
-			&player.s_rect,
-			&player.d_rect,
-			0.0, NULL,
-			player.faced_left ? 
-				SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
-		SDL_RenderCopyEx(
-			renderer, 
-			enemy.texture, 
-			&enemy.s_rect,
-			&enemy.d_rect,
-			0.0, NULL,
-			enemy.faced_left ? 
-				SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
-
-		foreach(i, bullets)
+		//Collision detection
+		if(enemy.d_rect.x + enemy.d_rect.w > 800)
 		{
-			Bullet* bullet = Array_get(bullets, i);
-			if(bullet->faced_left)
-				bullet->d_rect.x -= bullet->speed;
-			else
-				bullet->d_rect.x += bullet->speed;
+			enemy.d_rect.x = 800 - enemy.d_rect.w;
+		}
+		else if(enemy.d_rect.x < 0)
+		{
+			enemy.d_rect.x = 0;
+		}
 
-			SDL_RenderCopyEx(
-				renderer,
-				bullet->texture,
-				NULL,
-				&bullet->d_rect,
-				0.0, NULL,
-				bullet->faced_left ?
-					SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
+		if(player.d_rect.x + player.d_rect.w > 800)
+		{
+			player.d_rect.x = 800 - player.d_rect.w;
+		}
+		else if(player.d_rect.x < 0)
+		{
+			player.d_rect.x = 0;
+		}
 
-			if(abs(bullet->d_rect.x - bullet->start_x) >= 
-				bullet->range)
+		if(SDL_HasIntersection(&medkit.d_rect, &player.d_rect))
+		{
+			player.hp += 40;
+			if(player.hp > 140)
+				player.hp = 140;
+			medkit.d_rect.y = 0;
+			medkit.d_rect.x = 1000;
+		}
+		if(!(enemies_killed % 4) && enemies_killed)
+		{
+			static int gotten = 0;
+			if(enemies_killed != gotten)
 			{
-				free(bullet);
-				Array_remove(bullets, i);
+				gotten = enemies_killed;
+				get_medkit = 1;
 			}
+		}
 
-			if(bullet->friendly)
-			{
-				if(SDL_HasIntersection(&bullet->d_rect, &enemy.d_rect))
-				{
-					enemy.hp -= 16;
-					free(bullet);
-					Array_remove(bullets, i);
-				}
-			}
-			else
-			{
-				if(SDL_HasIntersection(&bullet->d_rect, &player.d_rect))
-				{
-					player.hp -= 20;
-					free(bullet);
-					Array_remove(bullets, i);
-				}
-			}
+		if(get_medkit)
+		{
+			get_medkit = 0;
+			medkit.d_rect.y = 0;
+			medkit.d_rect.x = rand() % 700 + 50;
 		}
 
 		if(player.hp <= 0)
@@ -339,20 +409,11 @@ int main(void)
 			enemy.d_rect.x = rand() % 800;
 			enemy.d_rect.y = rand() % 600 - 200;
 			enemy.hp = 80;
-			enemy.delay -= 50;
-			enemy.speed++;
+			enemy.delay -= 25;
 			enemies_killed++;
+			if(!(enemies_killed % 2))
+				enemy.speed++;
 		} 
-		
-		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-		SDL_RenderFillRect(renderer, &(SDL_Rect){
-			(int)(800 - 20 - enemy.hp / 80.0 * 200), 20, (int)(enemy.hp / 80.0 * 200), 20
-		});
-		SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-		SDL_RenderFillRect(renderer, &(SDL_Rect){
-			20, 20, (int)(player.hp / 140.0 * 200), 20
-		});
-		SDL_RenderPresent(renderer);
 	}
 
 	foreach(i, bullets)
