@@ -2,6 +2,7 @@
 #include <time.h>
 #include <stdio.h>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_image.h>
 
 typedef struct
@@ -20,6 +21,13 @@ typedef struct
 	SDL_Texture* texture;
 	int speed, faced_left, range, start_x, friendly;
 } Bullet;
+
+typedef enum
+{
+	SINGLE_PLAYER,
+	MULTI_PLAYER
+
+} Mode;
 
 int main(void)
 {
@@ -43,7 +51,16 @@ int main(void)
 		"ground.png");
 	SDL_Texture* bullet_image = IMG_LoadTexture(
 		renderer,
-		"bullet.png"); Character player = {
+		"bullet.png");
+
+	int done = 0;
+/*
+	while(!done)
+	{
+
+	}
+*/
+	Character player = { 
 		{0, 0, 40, 50},
 		{300, 492, 40, 50},
 		IMG_LoadTexture(
@@ -52,10 +69,11 @@ int main(void)
 		.speed = 4,
 		.delay = 100,
 		.frame = 5,
-		.hp = 120
+		.hp = 140
 	};
 
-	Character enemy = { {0, 0, 40, 50},
+	Character enemy = { 
+		{0, 0, 40, 50},
 		{380, 492, 40, 50},
 		IMG_LoadTexture(
 			renderer,
@@ -69,8 +87,9 @@ int main(void)
 	Array* bullets = Array_create();
 	const Uint8* key_down = SDL_GetKeyboardState(NULL);
 	SDL_Event event;
+	int enemies_killed = 0;
 	int gravity = 1;
-	int done = 0;
+	done = 0;
 	while(!done)
 	{
 		//Events
@@ -285,7 +304,7 @@ int main(void)
 			{
 				if(SDL_HasIntersection(&bullet->d_rect, &enemy.d_rect))
 				{
-					enemy.hp -= 10;
+					enemy.hp -= 16;
 					free(bullet);
 					Array_remove(bullets, i);
 				}
@@ -303,23 +322,35 @@ int main(void)
 
 		if(player.hp <= 0)
 		{
+			int len = snprintf(NULL, 0, 
+				"You died! You killed %i enemies!", 
+				enemies_killed);
+			char buffer[len];
+			sprintf(buffer, 
+				"You died! You killed %i enemies!",
+				enemies_killed);
+			SDL_ShowSimpleMessageBox(
+				SDL_MESSAGEBOX_INFORMATION, 
+				"Game Over", buffer, NULL);
 			done = 1;
-			SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Alert", "You died!", NULL);
 		}
 		else if(enemy.hp <= 0)
 		{
 			enemy.d_rect.x = rand() % 800;
 			enemy.d_rect.y = rand() % 600 - 200;
 			enemy.hp = 80;
-		}
-
+			enemy.delay -= 50;
+			enemy.speed++;
+			enemies_killed++;
+		} 
+		
 		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
 		SDL_RenderFillRect(renderer, &(SDL_Rect){
 			(int)(800 - 20 - enemy.hp / 80.0 * 200), 20, (int)(enemy.hp / 80.0 * 200), 20
 		});
 		SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
 		SDL_RenderFillRect(renderer, &(SDL_Rect){
-			20, 20, (int)(player.hp / 120.0 * 200), 20
+			20, 20, (int)(player.hp / 140.0 * 200), 20
 		});
 		SDL_RenderPresent(renderer);
 	}
