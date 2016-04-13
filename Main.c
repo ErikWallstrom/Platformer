@@ -33,6 +33,7 @@ int main(void)
 {
 	srand((unsigned)time(0));
 	SDL_Init(SDL_INIT_EVERYTHING);
+	TTF_Init();
 	SDL_Window* window = SDL_CreateWindow(
 		"Platformer 0.1",
 		SDL_WINDOWPOS_CENTERED,
@@ -207,6 +208,11 @@ int main(void)
 				case SDL_SCANCODE_D:
 					player.direction = 0;
 					player.frame = 5;
+				break;
+				case SDL_SCANCODE_P:
+					SDL_ShowSimpleMessageBox(
+						SDL_MESSAGEBOX_INFORMATION, 
+						"Game Paused", "Press OK to resume game", NULL);
 				}
 			break;
 			}
@@ -428,5 +434,6 @@ int main(void)
 	SDL_DestroyTexture(bullet_image);
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
+	TTF_Quit();
 	SDL_Quit();
 }
