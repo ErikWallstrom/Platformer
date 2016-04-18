@@ -35,14 +35,16 @@ import ycm_core
 # compilation database set (by default, one is not set).
 # CHANGE THIS LIST OF FLAGS. YES, THIS IS THE DROID YOU HAVE BEEN LOOKING FOR.
 flags = [
+'-fms-extensions',
 '-Wall',
 '-Wextra',
 '-Wshadow',
 '-Wformat=2',
-'-Wpedantic',
 '-Wconversion',
 '-Wunreachable-code',
 '-Wno-switch',
+'-Wno-microsoft',
+'-Wno-missing-field-initializers',
 '-std=c11',
 # ...and the same thing goes for the magic -x option which specifies the
 # language that the files to be compiled are written in. This is mostly

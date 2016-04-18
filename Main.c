@@ -1,9 +1,95 @@
 #include "Array.h"
 #include <time.h>
+#include <math.h>
 #include <stdio.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_image.h>
+
+typedef struct
+{
+	double x, y;
+
+} Vector_2d;
+
+typedef struct
+{
+	Vector_2d;
+	SDL_Texture* texture;
+	SDL_Rect s_rect;
+	int width, height;
+
+} Display_Object;
+
+typedef struct
+{
+	unsigned delay, time;
+	size_t selected_frame;
+	size_t total_frames;
+	Vector_2d* frames;
+
+} Animation;
+
+void render(SDL_Renderer* renderer, Display_Object* disp_obj)
+{
+	SDL_RenderCopy(
+		renderer,
+		disp_obj->texture,
+		(disp_obj->s_rect.x +
+		 disp_obj->s_rect.y +
+		 disp_obj->s_rect.w +
+		 disp_obj->s_rect.x) ? &disp_obj->s_rect : NULL,
+		&(SDL_Rect){
+			(int)round(disp_obj->x),
+			(int)round(disp_obj->y),
+			disp_obj->width,
+			disp_obj->height
+		}
+	);
+}
+
+typedef struct
+{
+	Display_Object;
+	size_t selected_animation;
+	size_t total_animations;
+	Animation* animations;
+
+} Sprite;
+
+void animate(Sprite* sprite)
+{
+	Animation* animation = &sprite->animations[sprite->selected_animation];
+	if(SDL_GetTicks() - animation->delay > animation->time)
+	{
+		animation->time = SDL_GetTicks();
+		animation->selected_frame++;
+
+		if(animation->selected_frame >= animation->total_frames)
+			animation->selected_frame = 0;
+	}
+
+	Vector_2d frame_pos = animation->frames[animation->selected_frame];
+	sprite->s_rect = (SDL_Rect){
+		(int)round(frame_pos.x),
+		(int)round(frame_pos.y),
+		sprite->s_rect.w,
+		sprite->s_rect.h
+	};
+}
+
+typedef struct
+{
+	Sprite;
+	int hp, friendly, direction;
+	double speed;
+
+} Char;
+
+typedef struct
+{
+	Char;
+} Bullet;
 
 typedef struct
 {
@@ -22,18 +108,13 @@ typedef struct
 	int speed, faced_left, range, start_x, friendly;
 } Bullet;
 
-typedef enum
-{
-	SINGLE_PLAYER,
-	MULTI_PLAYER
-
-} Mode;
-
 int main(void)
 {
 	srand((unsigned)time(0));
-	SDL_Init(SDL_INIT_EVERYTHING);
+	SDL_Init(SDL_INIT_VIDEO);
+	IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG);
 	TTF_Init();
+
 	SDL_Window* window = SDL_CreateWindow(
 		"Platformer 0.1",
 		SDL_WINDOWPOS_CENTERED,
@@ -42,7 +123,7 @@ int main(void)
 	SDL_Renderer* renderer = SDL_CreateRenderer(
 		window, -1,
 		SDL_RENDERER_ACCELERATED |
-		SDL_RENDERER_PRESENTVSYNC | 
+		SDL_RENDERER_PRESENTVSYNC |
 		SDL_RENDERER_TARGETTEXTURE);
 	SDL_Texture* background_image = IMG_LoadTexture(
 		renderer,
@@ -54,14 +135,7 @@ int main(void)
 		renderer,
 		"bullet.png");
 
-	int done = 0;
-/*
-	while(!done)
-	{
-
-	}
-*/
-	Character player = { 
+	Character player = {
 		{0, 0, 40, 50},
 		{300, 492, 40, 50},
 		IMG_LoadTexture(
@@ -73,7 +147,7 @@ int main(void)
 		.hp = 140
 	};
 
-	Character enemy = { 
+	Character enemy = {
 		{0, 0, 40, 50},
 		{380, 492, 40, 50},
 		IMG_LoadTexture(
@@ -94,13 +168,49 @@ int main(void)
 		.speed = 0
 	};
 
+	Sprite sprite = {
+		.texture = IMG_LoadTexture(
+			renderer,
+			"enemy.png"),
+		.s_rect = {0, 0, 40, 50},
+		.x = 400,
+		.y = 300,
+		.width = 40,
+		.height = 50,
+		.selected_animation = 0,
+		.total_animations = 2,
+		.animations = (Animation[]){
+			{
+				.delay = 100,
+				.time = 0,
+				.selected_frame = 0,
+				.total_frames = 4,
+				.frames = (Vector_2d[]){
+					{sprite.s_rect.w * 0, 0},
+					{sprite.s_rect.w * 1, 0},
+					{sprite.s_rect.w * 2, 0},
+					{sprite.s_rect.w * 3, 0},
+				}
+			},
+			{
+				.delay = 0,
+				.time = 0,
+				.selected_frame = 0,
+				.total_frames = 1,
+				.frames = (Vector_2d[]){
+					{sprite.s_rect.w * 4, sprite.s_rect.h * 4},
+				}
+			}
+		}
+	};
+
 	Array* bullets = Array_create();
 	const Uint8* key_down = SDL_GetKeyboardState(NULL);
 	SDL_Event event;
 	int enemies_killed = 0;
 	int get_medkit = 0;
 	int gravity = 1;
-	done = 0;
+	int done = 0;
 	while(!done)
 	{
 		//Rendering
@@ -122,20 +232,20 @@ int main(void)
 			&medkit.d_rect
 		);
 		SDL_RenderCopyEx(
-			renderer, 
-			player.texture, 
+			renderer,
+			player.texture,
 			&player.s_rect,
 			&player.d_rect,
 			0.0, NULL,
-			player.faced_left ? 
+			player.faced_left ?
 				SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
 		SDL_RenderCopyEx(
-			renderer, 
-			enemy.texture, 
+			renderer,
+			enemy.texture,
 			&enemy.s_rect,
 			&enemy.d_rect,
 			0.0, NULL,
-			enemy.faced_left ? 
+			enemy.faced_left ?
 				SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
 
 		foreach(i, bullets)
@@ -155,11 +265,12 @@ int main(void)
 				bullet->faced_left ?
 					SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
 
-			if(abs(bullet->d_rect.x - bullet->start_x) >= 
+			if(abs(bullet->d_rect.x - bullet->start_x) >=
 				bullet->range)
 			{
 				free(bullet);
 				Array_remove(bullets, i);
+				continue;
 			}
 
 			if(bullet->friendly)
@@ -169,6 +280,7 @@ int main(void)
 					enemy.hp -= 16;
 					free(bullet);
 					Array_remove(bullets, i);
+					continue;
 				}
 			}
 			else
@@ -178,10 +290,14 @@ int main(void)
 					player.hp -= 20;
 					free(bullet);
 					Array_remove(bullets, i);
+					continue;
 				}
 			}
 		}
-		
+
+		animate(&sprite);
+		render(renderer, (Display_Object*)&sprite);
+
 		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
 		SDL_RenderFillRect(renderer, &(SDL_Rect){
 			(int)(800 - 20 - enemy.hp / 80.0 * 200), 20, (int)(enemy.hp / 80.0 * 200), 20
@@ -211,8 +327,10 @@ int main(void)
 				break;
 				case SDL_SCANCODE_P:
 					SDL_ShowSimpleMessageBox(
-						SDL_MESSAGEBOX_INFORMATION, 
+						SDL_MESSAGEBOX_INFORMATION,
 						"Game Paused", "Press OK to resume game", NULL);
+				case SDL_SCANCODE_Q:
+					done = 1;
 				}
 			break;
 			}
@@ -256,21 +374,21 @@ int main(void)
 		}
 		if(key_down[SDL_SCANCODE_SPACE])
 		{
-			static unsigned shoot_time = 0;
-			if(SDL_GetTicks() / 400 > shoot_time)
+			//static unsigned shoot_time = 0;
+			//if(SDL_GetTicks() / 400 > shoot_time)
 			{
-				shoot_time = SDL_GetTicks() / 400;
+				//shoot_time = SDL_GetTicks() / 400;
 				Bullet* bullet = malloc(sizeof(Bullet));
 				*bullet = (Bullet){
 					{
-						player.d_rect.x + player.d_rect.w / 2 + 4, 
-						player.d_rect.y + player.d_rect.h / 2 - 6, 
+						player.d_rect.x + player.d_rect.w / 2 + 4,
+						player.d_rect.y + player.d_rect.h / 2 - 6,
 						8, 8
 					},
 					bullet_image,
-					.speed = 9, 
-					.faced_left = player.faced_left, 
-					.range = 800, 
+					.speed = 9,
+					.faced_left = player.faced_left,
+					.range = 800,
 					.start_x = player.d_rect.x,
 					.friendly = 1
 				};
@@ -288,14 +406,14 @@ int main(void)
 				Bullet* e_bullet = malloc(sizeof(Bullet));
 				*e_bullet = (Bullet){
 					{
-						enemy.d_rect.x + enemy.d_rect.w / 2 + 4, 
-						enemy.d_rect.y + enemy.d_rect.h / 2 - 6, 
+						enemy.d_rect.x + enemy.d_rect.w / 2 + 4,
+						enemy.d_rect.y + enemy.d_rect.h / 2 - 6,
 						8, 8
 					},
 					bullet_image,
-					.speed = 5, 
-					.faced_left = enemy.faced_left, 
-					.range = 800, 
+					.speed = 5,
+					.faced_left = enemy.faced_left,
+					.range = 800,
 					.start_x = enemy.d_rect.x,
 					.friendly = 0
 				};
@@ -307,7 +425,7 @@ int main(void)
 					enemy.force = -15;
 				enemy.faced_left = (rand() % 1000 > 500) ? 0 : 1;
 			}
-			else 
+			else
 			{
 				int r = rand() % 100000;
 				if(r > 70000)
@@ -398,15 +516,15 @@ int main(void)
 
 		if(player.hp <= 0)
 		{
-			int len = snprintf(NULL, 0, 
-				"You died! You killed %i enemies!", 
+			int len = snprintf(NULL, 0,
+				"You died! You killed %i enemies!",
 				enemies_killed);
 			char buffer[len];
-			sprintf(buffer, 
+			sprintf(buffer,
 				"You died! You killed %i enemies!",
 				enemies_killed);
 			SDL_ShowSimpleMessageBox(
-				SDL_MESSAGEBOX_INFORMATION, 
+				SDL_MESSAGEBOX_INFORMATION,
 				"Game Over", buffer, NULL);
 			done = 1;
 		}
@@ -415,11 +533,12 @@ int main(void)
 			enemy.d_rect.x = rand() % 800;
 			enemy.d_rect.y = rand() % 600 - 200;
 			enemy.hp = 80;
-			enemy.delay -= 25;
+			if(enemy.delay > 50)
+				enemy.delay -= 25;
 			enemies_killed++;
 			if(!(enemies_killed % 2))
 				enemy.speed++;
-		} 
+		}
 	}
 
 	foreach(i, bullets)
