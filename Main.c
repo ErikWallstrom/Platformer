@@ -1,95 +1,12 @@
 #include "Array.h"
 #include <time.h>
-#include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_image.h>
 
-typedef struct
-{
-	double x, y;
-
-} Vector_2d;
-
-typedef struct
-{
-	Vector_2d;
-	SDL_Texture* texture;
-	SDL_Rect s_rect;
-	int width, height;
-
-} Display_Object;
-
-typedef struct
-{
-	unsigned delay, time;
-	size_t selected_frame;
-	size_t total_frames;
-	Vector_2d* frames;
-
-} Animation;
-
-void render(SDL_Renderer* renderer, Display_Object* disp_obj)
-{
-	SDL_RenderCopy(
-		renderer,
-		disp_obj->texture,
-		(disp_obj->s_rect.x +
-		 disp_obj->s_rect.y +
-		 disp_obj->s_rect.w +
-		 disp_obj->s_rect.x) ? &disp_obj->s_rect : NULL,
-		&(SDL_Rect){
-			(int)round(disp_obj->x),
-			(int)round(disp_obj->y),
-			disp_obj->width,
-			disp_obj->height
-		}
-	);
-}
-
-typedef struct
-{
-	Display_Object;
-	size_t selected_animation;
-	size_t total_animations;
-	Animation* animations;
-
-} Sprite;
-
-void animate(Sprite* sprite)
-{
-	Animation* animation = &sprite->animations[sprite->selected_animation];
-	if(SDL_GetTicks() - animation->delay > animation->time)
-	{
-		animation->time = SDL_GetTicks();
-		animation->selected_frame++;
-
-		if(animation->selected_frame >= animation->total_frames)
-			animation->selected_frame = 0;
-	}
-
-	Vector_2d frame_pos = animation->frames[animation->selected_frame];
-	sprite->s_rect = (SDL_Rect){
-		(int)round(frame_pos.x),
-		(int)round(frame_pos.y),
-		sprite->s_rect.w,
-		sprite->s_rect.h
-	};
-}
-
-typedef struct
-{
-	Sprite;
-	int hp, friendly, direction;
-	double speed;
-
-} Char;
-
-typedef struct
-{
-	Char;
-} Bullet;
+#undef main
 
 typedef struct
 {
@@ -108,13 +25,18 @@ typedef struct
 	int speed, faced_left, range, start_x, friendly;
 } Bullet;
 
+typedef enum
+{
+	SINGLE_PLAYER,
+	MULTI_PLAYER
+
+} Mode;
+
 int main(void)
 {
 	srand((unsigned)time(0));
-	SDL_Init(SDL_INIT_VIDEO);
-	IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG);
+	SDL_Init(SDL_INIT_EVERYTHING);
 	TTF_Init();
-
 	SDL_Window* window = SDL_CreateWindow(
 		"Platformer 0.1",
 		SDL_WINDOWPOS_CENTERED,
@@ -135,6 +57,13 @@ int main(void)
 		renderer,
 		"bullet.png");
 
+	int done = 0;
+/*
+	while(!done)
+	{
+
+	}
+*/
 	Character player = {
 		{0, 0, 40, 50},
 		{300, 492, 40, 50},
@@ -168,51 +97,16 @@ int main(void)
 		.speed = 0
 	};
 
-	Sprite sprite = {
-		.texture = IMG_LoadTexture(
-			renderer,
-			"enemy.png"),
-		.s_rect = {0, 0, 40, 50},
-		.x = 400,
-		.y = 300,
-		.width = 40,
-		.height = 50,
-		.selected_animation = 0,
-		.total_animations = 2,
-		.animations = (Animation[]){
-			{
-				.delay = 100,
-				.time = 0,
-				.selected_frame = 0,
-				.total_frames = 4,
-				.frames = (Vector_2d[]){
-					{sprite.s_rect.w * 0, 0},
-					{sprite.s_rect.w * 1, 0},
-					{sprite.s_rect.w * 2, 0},
-					{sprite.s_rect.w * 3, 0},
-				}
-			},
-			{
-				.delay = 0,
-				.time = 0,
-				.selected_frame = 0,
-				.total_frames = 1,
-				.frames = (Vector_2d[]){
-					{sprite.s_rect.w * 4, sprite.s_rect.h * 4},
-				}
-			}
-		}
-	};
-
 	Array* bullets = Array_create();
 	const Uint8* key_down = SDL_GetKeyboardState(NULL);
 	SDL_Event event;
 	int enemies_killed = 0;
 	int get_medkit = 0;
 	int gravity = 1;
-	int done = 0;
+	done = 0;
 	while(!done)
 	{
+		//!SDL_Delay(32);
 		//Rendering
 		SDL_RenderClear(renderer);
 		SDL_RenderCopy(
@@ -270,7 +164,6 @@ int main(void)
 			{
 				free(bullet);
 				Array_remove(bullets, i);
-				continue;
 			}
 
 			if(bullet->friendly)
@@ -280,7 +173,6 @@ int main(void)
 					enemy.hp -= 16;
 					free(bullet);
 					Array_remove(bullets, i);
-					continue;
 				}
 			}
 			else
@@ -290,13 +182,9 @@ int main(void)
 					player.hp -= 20;
 					free(bullet);
 					Array_remove(bullets, i);
-					continue;
 				}
 			}
 		}
-
-		animate(&sprite);
-		render(renderer, (Display_Object*)&sprite);
 
 		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
 		SDL_RenderFillRect(renderer, &(SDL_Rect){
@@ -329,14 +217,12 @@ int main(void)
 					SDL_ShowSimpleMessageBox(
 						SDL_MESSAGEBOX_INFORMATION,
 						"Game Paused", "Press OK to resume game", NULL);
-				case SDL_SCANCODE_Q:
-					done = 1;
 				}
 			break;
 			}
 		}
 
-		//Keyboard
+		//Keyboardhttp://stackoverflow.com/questions/1485505/representing-dynamic-typing-in-c
 		if(key_down[SDL_SCANCODE_W])
 		{
 			if(player.d_rect.y == 492)
@@ -374,10 +260,10 @@ int main(void)
 		}
 		if(key_down[SDL_SCANCODE_SPACE])
 		{
-			//static unsigned shoot_time = 0;
-			//if(SDL_GetTicks() / 400 > shoot_time)
+			static unsigned shoot_time = 0;
+			if(SDL_GetTicks() / 400 > shoot_time)
 			{
-				//shoot_time = SDL_GetTicks() / 400;
+				shoot_time = SDL_GetTicks() / 400;
 				Bullet* bullet = malloc(sizeof(Bullet));
 				*bullet = (Bullet){
 					{
@@ -399,8 +285,8 @@ int main(void)
 		//AI
 		if(SDL_GetTicks() - enemy.time > enemy.delay)
 		{
-			int action = rand() % 100000;
-			if(action > 70000)
+			int action = rand() % 10000;
+			if(action > 7000)
 			{
 				enemy.time = SDL_GetTicks();
 				Bullet* e_bullet = malloc(sizeof(Bullet));
@@ -419,7 +305,7 @@ int main(void)
 				};
 				Array_insert(bullets, 0, e_bullet);
 			}
-			else if(action > 60000)
+			else if(action > 6000)
 			{
 				if(enemy.d_rect.y == 492)
 					enemy.force = -15;
@@ -427,10 +313,10 @@ int main(void)
 			}
 			else
 			{
-				int r = rand() % 100000;
-				if(r > 70000)
+				int r = rand() % 10000;
+				if(r > 7000)
 					enemy.direction = 0;
-				else if(r > 40000)
+				else if(r > 4000)
 					enemy.direction = 1;
 				else
 					enemy.direction = -1;
@@ -533,8 +419,7 @@ int main(void)
 			enemy.d_rect.x = rand() % 800;
 			enemy.d_rect.y = rand() % 600 - 200;
 			enemy.hp = 80;
-			if(enemy.delay > 50)
-				enemy.delay -= 25;
+			enemy.delay -= 25;
 			enemies_killed++;
 			if(!(enemies_killed % 2))
 				enemy.speed++;
